@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"github.com/rs/cors"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -13,7 +14,8 @@ import (
 )
 
 func main() {
-	http.HandleFunc("/random-coord", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/random-coord", func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
 		if !ok {
 			http.Error(w, "SSE not supported", http.StatusInternalServerError)
@@ -31,7 +33,7 @@ func main() {
 		go generateCoord(r.Context(), priceCh)
 
 		for price := range priceCh {
-			event, err := formatServerSentEvent("price-update", price)
+			event, err := formatServerSentEvent("message", price)
 			if err != nil {
 				fmt.Println(err)
 				break
@@ -49,7 +51,8 @@ func main() {
 		fmt.Println("Finished sending coords...")
 	})
 
-	http.ListenAndServe(":4444", nil)
+	handler := cors.Default().Handler(mux)
+	http.ListenAndServe(":4444", handler)
 }
 
 // generateCoord generates price as random integer and sends it the
@@ -115,7 +118,7 @@ func formatServerSentEvent(event string, coords any) (string, error) {
 
 	sb := strings.Builder{}
 
-	sb.WriteString(fmt.Sprintf(buff.String()))
+	sb.WriteString(fmt.Sprintf("data: " + buff.String() + "\n\n"))
 
 	return sb.String(), nil
 }
